@@ -1,11 +1,8 @@
-﻿using Discord.WebSocket;
+﻿using Discord;
 using Discord.Commands;
-using Discord;
-
+using Discord.WebSocket;
 using Microsoft.Extensions.DependencyInjection;
-
 using System.Reflection;
-
 using Victoria;
 
 namespace DiscordMusicBot {
@@ -51,7 +48,7 @@ namespace DiscordMusicBot {
 
             await RegisterCommandsAsync();
 
-            await _sharedClient.LoginAsync(TokenType.Bot, "");
+            await _sharedClient.LoginAsync(TokenType.Bot, File.ReadAllText(@"C:\Users\Claudiu HBann\Desktop\Random Projects\C#\Discord Music Bot\DiscordMusicBot.token"));
             await _sharedClient.StartAsync();
 
             await Task.Delay(-1);
