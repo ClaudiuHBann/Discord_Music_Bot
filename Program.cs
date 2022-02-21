@@ -51,7 +51,7 @@ namespace DiscordMusicBot {
 
             await RegisterCommandsAsync();
 
-            await _sharedClient.LoginAsync(TokenType.Bot, "OTM5MTg0NTg5NzExMjMzMTI0.Yf1Jzw.wXJ6wYw0jlaJN5rGb1Bldft-LGg");
+            await _sharedClient.LoginAsync(TokenType.Bot, "");
             await _sharedClient.StartAsync();
 
             await Task.Delay(-1);
