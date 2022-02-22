@@ -1,20 +1,18 @@
-﻿using Discord;
-using Discord.Commands;
-using Victoria;
-using Victoria.EventArgs;
+﻿using Discord.Commands;
+using Discord;
 
-namespace DiscordMusicBot {
-    public class CMusic : ModuleBase<SocketCommandContext> {
+using Victoria.EventArgs;
+using Victoria;
+
+namespace DiscordMusicBot.Modules {
+    public class MMusic : ModuleBase<SocketCommandContext> {
         private readonly LavaNode _lavaNode;
         private static bool repeat = false;
 
-        public CMusic(LavaNode lavaNode) {
+        public MMusic(LavaNode lavaNode) {
             _lavaNode = lavaNode;
 
             _lavaNode.OnTrackEnded += OnTrackEndedAsync;
-
-            Program.SetLavaNode(lavaNode);
-            Console.WriteLine("lava node created");
         }
 
         private async Task OnTrackEndedAsync(TrackEndedEventArgs arg) {
@@ -22,7 +20,7 @@ namespace DiscordMusicBot {
                 if (repeat) {
                     await arg.Player.PlayAsync(arg.Track);
                 } else {
-                    if (arg.Player.Queue.Count > 0) {
+                    if (arg.Player.Queue != null && arg.Player.Queue.Count > 0) {
                         await arg.Player.SkipAsync();
                         await arg.Player.TextChannel.SendMessageAsync("Now Playing...", false, await CreateEmbed(arg.Player.Track));
                     }
@@ -30,7 +28,7 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("join", RunMode = RunMode.Async)]
+        [Command("join")]
         public async Task JoinAsync() {
             if (_lavaNode.HasPlayer(Context.Guild)) {
                 await ReplyAsync("I'm already connected to a voice channel!");
@@ -51,7 +49,7 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("play", RunMode = RunMode.Async)]
+        [Command("play")]
         public async Task PlayAsync([Remainder] string query) {
             if (string.IsNullOrWhiteSpace(query)) {
                 await ReplyAsync("Please provide search terms.");
@@ -85,7 +83,7 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("skip", RunMode = RunMode.Async)]
+        [Command("skip")]
         public async Task SkipAsync() {
             var voiceState = Context.User as IVoiceState;
             if (voiceState?.VoiceChannel == null) {
@@ -113,7 +111,7 @@ namespace DiscordMusicBot {
             await ReplyAsync(null, false, await CreateEmbed(player.Track));
         }
 
-        [Command("pause", RunMode = RunMode.Async)]
+        [Command("pause")]
         public async Task PauseAsync() {
             var voiceState = Context.User as IVoiceState;
             if (voiceState?.VoiceChannel == null) {
@@ -142,7 +140,7 @@ namespace DiscordMusicBot {
             await ReplyAsync("Paused the music!");
         }
 
-        [Command("resume", RunMode = RunMode.Async)]
+        [Command("resume")]
         public async Task ResumeAsync() {
             var voiceState = Context.User as IVoiceState;
             if (voiceState?.VoiceChannel == null) {
@@ -175,7 +173,7 @@ namespace DiscordMusicBot {
 
 
 
-        [Command("stop", RunMode = RunMode.Async)]
+        [Command("stop")]
         public async Task StopAsync() {
             var voiceState = Context.User as IVoiceState;
             if (voiceState?.VoiceChannel == null) {
@@ -203,7 +201,7 @@ namespace DiscordMusicBot {
             await ReplyAsync("Stopped the music!");
         }
 
-        [Command("leave", RunMode = RunMode.Async)]
+        [Command("leave")]
         public async Task LeaveAsync() {
             var voiceState = Context.User as IVoiceState;
             if (voiceState?.VoiceChannel == null) {
@@ -223,13 +221,13 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("clear", RunMode = RunMode.Async)]
+        [Command("clear")]
         [Alias("clr")]
         public async Task ClearAsync() {
             _lavaNode.GetPlayer(Context.Guild).Queue.Clear();
         }
 
-        [Command("repeat", RunMode = RunMode.Async)]
+        [Command("repeat")]
         public async Task RepeatAsync() {
             repeat = !repeat;
 
@@ -240,24 +238,24 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("shuffle", RunMode = RunMode.Async)]
+        [Command("shuffle")]
         public async Task ShuffleAsync() {
             _lavaNode.GetPlayer(Context.Guild).Queue.Shuffle();
         }
 
-        [Command("seek", RunMode = RunMode.Async)]
+        [Command("seek")]
         public async Task SeekAsync(int hours, int minutes, int seconds) {
             if (_lavaNode.GetPlayer(Context.Guild).Track.CanSeek) {
                 await _lavaNode.GetPlayer(Context.Guild).SeekAsync(new TimeSpan(hours, minutes, seconds));
             }
         }
 
-        [Command("np", RunMode = RunMode.Async)]
+        [Command("np")]
         public async Task NPAsync() {
             await ReplyAsync(_lavaNode.GetPlayer(Context.Guild).Track.Position.ToString(), false, await CreateEmbed(_lavaNode.GetPlayer(Context.Guild).Track));
         }
 
-        [Command("search", RunMode = RunMode.Async)]
+        [Command("search")]
         public async Task SearchAsync([Remainder] string query) {
             await _lavaNode.SearchAsync(Victoria.Responses.Search.SearchType.YouTube, query).ContinueWith(async (a) => {
                 string tracks = "";
@@ -274,7 +272,7 @@ namespace DiscordMusicBot {
             });
         }
 
-        [Command("lyrics", RunMode = RunMode.Async)]
+        [Command("lyrics")]
         public async Task LyricsAsync() {
             var track = _lavaNode.GetPlayer(Context.Guild).Track;
 
@@ -308,7 +306,7 @@ namespace DiscordMusicBot {
             Console.WriteLine("-1");
         }
 
-        [Command("queue", RunMode = RunMode.Async)]
+        [Command("queue")]
         [Alias("q")]
         public async Task QueueAsync() {
             string q = "";
@@ -328,7 +326,7 @@ namespace DiscordMusicBot {
             await ReplyAsync("", false, embed.Build());
         }
 
-        [Command("jump", RunMode = RunMode.Async)]
+        [Command("jump")]
         public async Task JumpAsync(int numberOfTracks) {
             if (numberOfTracks > _lavaNode.GetPlayer(Context.Guild).Queue.Count) {
                 await ReplyAsync($"There are not {numberOfTracks} or more tracks in the queue.");
@@ -337,11 +335,11 @@ namespace DiscordMusicBot {
             }
         }
 
-        [Command("all", RunMode = RunMode.Async)]
+        [Command("all")]
         public async Task AllAsync() {
-            string commands = "";
+            /*string commands = "";
 
-            foreach (var item in Program.GetCommandService().Commands) {
+            foreach (var item in Programm.GetCommandService().Commands) {
                 commands += item.Name + '\n';
             }
 
@@ -350,7 +348,7 @@ namespace DiscordMusicBot {
                 .WithTitle("Music bot commands are:")
                 .WithDescription(commands)
                 .WithFooter(footer => footer.Text = "Smecherie tata! :))")
-                .Build());
+                .Build());*/
         }
 
         public async Task<Embed> CreateEmbed(LavaTrack track) {
@@ -368,7 +366,7 @@ namespace DiscordMusicBot {
                 .WithFields(new EmbedFieldBuilder() {
                     Name = "Requested By",
                     IsInline = true,
-                    Value = Context.User.ToString() ?? "Context.User"
+                    Value = (Context != null) ? Context.User.ToString() : "Context.User"
                 })
                 .WithFooter(footer => footer.Text = "Smecherie tata! :))")
                 .Build();

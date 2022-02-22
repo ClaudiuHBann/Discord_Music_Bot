@@ -3,8 +3,8 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
-#Discord Music Bot Token
-DiscordMusicBot.token
+#Discord Music Bot Config
+_configuration.json
 
 # User-specific files
 *.rsuser
