@@ -7,22 +7,22 @@ using Victoria;
 
 namespace DiscordMusicBot.Services {
     public class CommandHandler {
-        private readonly DiscordSocketClient _discord;
-        private readonly CommandService _commands;
-        private readonly IConfigurationRoot _config;
-        private readonly IServiceProvider _provider;
-        private static LavaNode? _lavaNode = null;
+        private readonly DiscordSocketClient _discordSocketClient;
+        public static CommandService? _commandService;
+        private readonly IConfigurationRoot _iConfigurationRoot;
+        private readonly IServiceProvider _iServiceProvider;
+        private readonly LavaNode _lavaNode;
 
-        // DiscordSocketClient, CommandService, IConfigurationRoot, and IServiceProvider are injected automatically from the IServiceProvider
-        public CommandHandler(DiscordSocketClient discord, CommandService commands, IConfigurationRoot config, IServiceProvider provider, LavaNode lavaNode) {
-            _discord = discord;
-            _commands = commands;
-            _config = config;
-            _provider = provider;
+        public CommandHandler(DiscordSocketClient discordSocketClient, CommandService commandService, IConfigurationRoot iConfigurationRoot, IServiceProvider iServiceProvider, LavaNode lavaNode) {
+            _discordSocketClient = discordSocketClient;
+            _discordSocketClient.MessageReceived += OnMessageReceivedAsync;
+            _discordSocketClient.Ready += OnReadyAsync;
+            _commandService = commandService;
+
+            _iConfigurationRoot = iConfigurationRoot;
+            _iServiceProvider = iServiceProvider;
+
             _lavaNode = lavaNode;
-
-            _discord.MessageReceived += OnMessageReceivedAsync;
-            _discord.Ready += OnReadyAsync;
         }
 
         private async Task OnReadyAsync() {
@@ -31,21 +31,19 @@ namespace DiscordMusicBot.Services {
             }
         }
 
-        private async Task OnMessageReceivedAsync(SocketMessage s) {
-            // Ensure the message is from a user/bot
-            if (s is not SocketUserMessage msg) return;
-            if (msg.Author.Id == _discord.CurrentUser.Id) return;     // Ignore self when checking commands
+        private async Task OnMessageReceivedAsync(SocketMessage socketMessage) {
+            if (socketMessage is not SocketUserMessage msg || msg.Author.Id == _discordSocketClient.CurrentUser.Id) {
+                return;
+            }
 
-            var context = new SocketCommandContext(_discord, msg);     // Create the command context
+            var context = new SocketCommandContext(_discordSocketClient, msg);
+            int argPos = 0;
+            if (msg.HasStringPrefix(_iConfigurationRoot["prefix"], ref argPos) || msg.HasMentionPrefix(_discordSocketClient.CurrentUser, ref argPos)) {
+                var result = await _commandService.ExecuteAsync(context, argPos, _iServiceProvider);
 
-            Console.WriteLine(_config["prefix"]);
-
-            int argPos = 0;     // Check if the message has a valid command prefix
-            if (msg.HasStringPrefix(_config["prefix"], ref argPos) || msg.HasMentionPrefix(_discord.CurrentUser, ref argPos)) {
-                var result = await _commands.ExecuteAsync(context, argPos, _provider);     // Execute the command
-
-                if (!result.IsSuccess)     // If not successful, reply with the error.
+                if (!result.IsSuccess) {
                     await context.Channel.SendMessageAsync(result.ToString());
+                }
             }
         }
     }

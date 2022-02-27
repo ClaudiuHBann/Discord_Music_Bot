@@ -4,33 +4,35 @@ using Discord;
 
 namespace DiscordMusicBot.Services {
     public class SLogging {
-        private readonly DiscordSocketClient _discord;
-        private readonly CommandService _commands;
+        private readonly DiscordSocketClient _discordSocketClient;
+        private readonly CommandService _commandService;
 
-        private string _logDirectory { get; }
-        private string _logFile => Path.Combine(_logDirectory, $"{DateTime.UtcNow:yyyy-MM-dd}.txt");
+        private string _logsDirectory { get; }
+        private string _logsFile => Path.Combine(_logsDirectory, $"{DateTime.UtcNow:yyyy-MM-dd}.txt");
 
-        // DiscordSocketClient and CommandService are injected automatically from the IServiceProvider
-        public SLogging(DiscordSocketClient discord, CommandService commands) {
-            _logDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
+        public SLogging(DiscordSocketClient discordSocketClient, CommandService commandService) {
+            _logsDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
 
-            _discord = discord;
-            _commands = commands;
+            _discordSocketClient = discordSocketClient;
+            _discordSocketClient.Log += OnLogAsync;
 
-            _discord.Log += OnLogAsync;
-            _commands.Log += OnLogAsync;
+            _commandService = commandService;
+            _commandService.Log += OnLogAsync;
         }
 
-        private Task OnLogAsync(LogMessage msg) {
-            if (!Directory.Exists(_logDirectory))     // Create the log directory if it doesn't exist
-                Directory.CreateDirectory(_logDirectory);
-            if (!File.Exists(_logFile))               // Create today's log file if it doesn't exist
-                File.Create(_logFile).Dispose();
+        private Task OnLogAsync(LogMessage logMessage) {
+            if (!Directory.Exists(_logsDirectory)) {
+                Directory.CreateDirectory(_logsDirectory);
+            }
 
-            string logText = $"{DateTime.UtcNow:hh:mm:ss} [{msg.Severity}] {msg.Source}: {msg.Exception?.ToString() ?? msg.Message}";
-            File.AppendAllText(_logFile, logText + "\n");     // Write the log text to a file
+            if (!File.Exists(_logsFile)) {
+                File.Create(_logsFile).Dispose();
+            }
 
-            return Console.Out.WriteLineAsync(logText);       // Write the log text to the console
+            string log = $"{DateTime.UtcNow:hh:mm:ss} [{logMessage.Severity}] {logMessage.Source}: {logMessage.Exception?.ToString() ?? logMessage.Message}";
+            File.AppendAllText(_logsFile, log + "\n");
+
+            return Console.Out.WriteLineAsync(log);
         }
     }
 }

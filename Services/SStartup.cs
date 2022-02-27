@@ -3,32 +3,34 @@ using Discord.Commands;
 using Discord;
 
 using Microsoft.Extensions.Configuration;
+
 using System.Reflection;
 
 namespace DiscordMusicBot.Services {
     public class SStartup {
-        private readonly IServiceProvider _provider;
-        private readonly DiscordSocketClient _discord;
-        private readonly CommandService _commands;
-        private readonly IConfigurationRoot _config;
+        private readonly DiscordSocketClient _discordSocketClient;
+        private readonly CommandService _commandService;
 
-        // DiscordSocketClient, CommandService, and IConfigurationRoot are injected automatically from the IServiceProvider
-        public SStartup(IServiceProvider provider, DiscordSocketClient discord, CommandService commands, IConfigurationRoot config) {
-            _provider = provider;
-            _config = config;
-            _discord = discord;
-            _commands = commands;
+        private readonly IServiceProvider _iServiceProvider;
+        private readonly IConfigurationRoot _iConfigurationRoot;
+
+        public SStartup(IServiceProvider iServiceProvider, DiscordSocketClient discordSocketClient, CommandService commandService, IConfigurationRoot iConfigurationRoot) {
+            _discordSocketClient = discordSocketClient;
+            _commandService = commandService;
+
+            _iServiceProvider = iServiceProvider;
+            _iConfigurationRoot = iConfigurationRoot;
         }
 
         public async Task StartAsync() {
-            string discordToken = _config["tokens:discord"];     // Get the discord token from the config file
-            if (string.IsNullOrWhiteSpace(discordToken))
+            if (string.IsNullOrWhiteSpace(_iConfigurationRoot["tokens:discord"])) {
                 throw new Exception("Please enter your bot's token into the `_configuration.json` file found in the applications root directory.");
+            }
 
-            await _discord.LoginAsync(TokenType.Bot, discordToken);     // Login to discord
-            await _discord.StartAsync();                                // Connect to the websocket
+            await _discordSocketClient.LoginAsync(TokenType.Bot, _iConfigurationRoot["tokens:discord"]);
+            await _discordSocketClient.StartAsync();
 
-            await _commands.AddModulesAsync(Assembly.GetEntryAssembly(), _provider);     // Load commands and modules into the command service
+            await _commandService.AddModulesAsync(Assembly.GetEntryAssembly(), _iServiceProvider);
         }
     }
 }
