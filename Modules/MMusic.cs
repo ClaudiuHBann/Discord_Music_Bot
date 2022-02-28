@@ -30,6 +30,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("join")]
+        [Summary("joins your voice channel")]
         public async Task JoinAsync() {
             if (!await IsConnectedUser()) {
                 return;
@@ -45,7 +46,8 @@ namespace DiscordMusicBot.Modules {
             await ReplyAsync($"Joined the '{voiceState?.VoiceChannel.Name}' voice channel!");
         }
 
-        [Command("play")]
+        [Command("play"), Alias("p")]
+        [Summary("plays your track request (will join your voice channel too if necessary)")]
         public async Task PlayAsync([Remainder] string query) {
             if (string.IsNullOrWhiteSpace(query)) {
                 await ReplyAsync("Please provide search terms.");
@@ -76,6 +78,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("skip")]
+        [Summary("stops the playing track and plays next track from queue if exists")]
         public async Task SkipAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -92,6 +95,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("pause")]
+        [Summary("pauses the playing track.")]
         public async Task PauseAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -109,6 +113,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("resume")]
+        [Summary("resumes the paused track")]
         public async Task ResumeAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -124,12 +129,8 @@ namespace DiscordMusicBot.Modules {
             await ReplyAsync("Resumed the music!");
         }
 
-
-
-
-
-
         [Command("stop")]
+        [Summary("stops the playing track")]
         public async Task StopAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -146,6 +147,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("leave")]
+        [Summary("leaves the voice channel")]
         public async Task LeaveAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -155,54 +157,45 @@ namespace DiscordMusicBot.Modules {
             await _lavaNode.LeaveAsync(voiceState?.VoiceChannel);
         }
 
-        [Command("clear")]
-        [Alias("clr", "jump")]
-        public async Task ClearAsync([Remainder] string fromTo) {
+        [Command("clear"), Alias("clr")]
+        [Summary("clears the queue or a part of it")]
+        public async Task ClearAsync() {
+            if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
+                return;
+            }
+
+            _lavaNode.GetPlayer(Context.Guild).Queue.Clear();
+        }
+
+        [Command("jump")]
+        [Summary("jumps over a range of tracks")]
+        public async Task JumpAsync(int amount) {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
             }
 
             var player = _lavaNode.GetPlayer(Context.Guild);
-            if (string.IsNullOrEmpty(fromTo)) {
-                player.Queue.Clear();
-            }
+            if (amount <= player.Queue.Count) {
+                player.Queue.RemoveRange(0, amount - 1);
 
-            if (Regex.IsMatch(fromTo, "[0-9 ]+")) {
-                string[] numbers = fromTo.Split();
-
-                int from = int.Parse(numbers[0]);
-                if (from > player.Queue.Count) {
-                    await ReplyAsync($"There are not {from} tracks in the queue.");
-                    return;
-                }
-
-                if (numbers.Length > 1) {
-                    int to = int.Parse(numbers[1]);
-
-                    if (to - from > player.Queue.Count) {
-                        await ReplyAsync($"There are not {to - from} tracks in the queue.");
-                    } else {
-                        if (to > player.Queue.Count) {
-                            await ReplyAsync($"There are not {to} tracks in the queue.");
-                            return;
-                        }
-
-                        if (from > to) {
-                            await ReplyAsync($"From value({from}) is bigger than to value({to}).");
-                            return;
-                        }
-
-                        player.Queue.RemoveRange(from, to);
-                    }
-                } else {
-                    player.Queue.RemoveRange(0, from);
+                if (player.Queue.Count > 0) {
+                    await player.SkipAsync();
                 }
             } else {
-                await ReplyAsync("The command is wrong!");
+                await ReplyAsync("The command's argument is wrong!");
+            }
+        }
+
+        [Command("remove"), Alias("delete")]
+        [Summary("not implemented yet")]
+        public async Task RemoveAsync() {
+            if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
+                return;
             }
         }
 
         [Command("repeat")]
+        [Summary("repeats the playing track forever muahaha :)")]
         public async Task RepeatAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -216,6 +209,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("shuffle")]
+        [Summary("shuffles the queue")]
         public async Task ShuffleAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -225,26 +219,79 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("seek")]
-        public async Task SeekAsync(int hours, int minutes, int seconds) {
+        [Summary("seeks the playing track")]
+        public async Task SeekAsync([Remainder] string timeSpan) {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
             }
 
-            if (_lavaNode.GetPlayer(Context.Guild).Track.CanSeek) {
-                await _lavaNode.GetPlayer(Context.Guild).SeekAsync(new TimeSpan(hours, minutes, seconds));
+            var player = _lavaNode.GetPlayer(Context.Guild);
+            if (!player.Track.CanSeek) {
+                await ReplyAsync("The track is unseekable!");
+                return;
+            }
+
+            if (Regex.IsMatch(timeSpan, "^[-:0-9]+$")) {
+                string[] tsSplit = timeSpan.Split(':');
+                TimeSpan ts;
+                if (tsSplit.Length == 1) {
+                    ts = new TimeSpan(0, 0, int.Parse(tsSplit[0]));
+                } else if (tsSplit.Length == 2) {
+                    ts = new TimeSpan(0, int.Parse(tsSplit[0]), int.Parse(tsSplit[1]));
+                } else {
+                    ts = new TimeSpan(int.Parse(tsSplit[0]), int.Parse(tsSplit[1]), int.Parse(tsSplit[2]));
+                }
+
+                if (ts > player.Track.Duration) {
+                    await ReplyAsync("The command's argument is wrong!");
+                    return;
+                }
+
+                await player.SeekAsync(ts);
+            } else {
+                await ReplyAsync("The command's argument is wrong!");
             }
         }
 
-        [Command("np")]
+        [Command("nowplaying"), Alias("np")]
+        [Summary("shows information about the playing track")]
         public async Task NPAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
             }
 
-            await ReplyAsync(_lavaNode.GetPlayer(Context.Guild).Track.Position.ToString(), false, await CreateEmbed(_lavaNode.GetPlayer(Context.Guild).Track));
+            var track = _lavaNode.GetPlayer(Context.Guild).Track;
+
+            TimeSpan position = track.Position, duration = track.Duration;
+            int posInBar = (int)((double)position.Ticks / duration.Ticks * 10.0);
+
+            string radioButton = "🔘";
+            string barChar = "▬";
+            string bar = "";
+
+            for (int i = 0; i < 10; i++) {
+                bar += (i == posInBar) ? radioButton : barChar;
+            }
+
+            await ReplyAsync(null, false,
+                new EmbedBuilder()
+                .WithColor(Color.DarkBlue)
+                .WithAuthor(track.Author)
+                .WithTitle(track.Title)
+                .WithUrl(track.Url)
+                .WithThumbnailUrl(await track.FetchArtworkAsync())
+                .WithDescription($"{position.ToString(@"hh\:mm\:ss")} {bar} {duration}")
+                .WithFields(new EmbedFieldBuilder() {
+                    Name = "Requested By",
+                    IsInline = true,
+                    Value = "Context.User"
+                })
+                .WithFooter(footer => footer.Text = "Pinn is the Best!")
+                .Build());
         }
 
         [Command("search")]
+        [Summary("searches for your track request and shows the best matches")]
         public async Task SearchAsync([Remainder] string query) {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -266,6 +313,7 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("lyrics")]
+        [Summary("shows the lyrics for the playing track")]
         public async Task LyricsAsync() {
             var track = _lavaNode.GetPlayer(Context.Guild).Track;
 
@@ -294,8 +342,8 @@ namespace DiscordMusicBot.Modules {
             }
         }
 
-        [Command("queue")]
-        [Alias("q")]
+        [Command("queue"), Alias("q")]
+        [Summary("shows the queue")]
         public async Task QueueAsync() {
             if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
                 return;
@@ -303,8 +351,8 @@ namespace DiscordMusicBot.Modules {
 
             string q = "";
             var queue = _lavaNode.GetPlayer(Context.Guild).Queue.ToArray();
-            for (int i = 1; i < queue.Length; i++) {
-                q += i + ". " + queue[i].Title + "\n";
+            for (int i = 1; i <= queue.Length; i++) {
+                q += i + ". " + queue[i - 1].Title + "\n";
             }
 
             await ReplyAsync("", false,
@@ -317,17 +365,31 @@ namespace DiscordMusicBot.Modules {
         }
 
         [Command("all")]
+        [Summary("shows all the commands (aliases) - summaries")]
         public async Task AllAsync() {
-            string commands = "";
-            foreach (var item in Services.CommandHandler._commandService?.Commands) {
-                commands += item.Name + '\n';
+            string all = "";
+            foreach (var command in Services.CommandHandler._commandService?.Commands.ToArray()) {
+                string aliases = "";
+                for (int i = 1; i < command.Aliases.Count; i++) {
+                    aliases += command.Aliases[i];
+
+                    if (i != command.Aliases.Count - 1) {
+                        aliases += ", ";
+                    }
+                }
+
+                if (aliases == "") {
+                    all += $"**{command.Name}** - *{command.Summary}*\n";
+                } else {
+                    all += $"**{command.Name}** (**{aliases}**) - *{command.Summary}*\n";
+                }
             }
 
             await ReplyAsync(null, false,
                 new EmbedBuilder()
                 .WithColor(Color.DarkBlue)
-                .WithTitle("Music bot commands are:")
-                .WithDescription(commands)
+                .WithTitle("Music commands are:")
+                .WithDescription(all)
                 .WithFooter(footer => footer.Text = "Pinn is the Best!")
                 .Build());
         }
@@ -388,7 +450,9 @@ namespace DiscordMusicBot.Modules {
     TO DO:
             - what the FUCK is the lyrics command !?
             - repeat feature is kind of shit implemented
-            - np feature is 'ok' but the message is shown wrong
-            - seek feature take string and split by ':' to make it friendly for seconds or sec and min or sec min and hours
             - any features left to add?
+            - on command succesfully sometimes nothing is returned to user visually
+            - when skip or play sometimes no track visualization appears to user
+            - add delete/remove command (deletes/removes tracks from queue)
+            - search for tracks in cloud too not just youtube
  */
