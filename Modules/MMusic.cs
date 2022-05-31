@@ -5,6 +5,7 @@ using Victoria.EventArgs;
 using Victoria;
 
 using System.Text.RegularExpressions;
+using System.Text;
 
 namespace DiscordMusicBot.Modules {
     public class MMusic : ModuleBase<SocketCommandContext> {
@@ -61,8 +62,13 @@ namespace DiscordMusicBot.Modules {
             var searchResponse = await _lavaNode.SearchYouTubeAsync(query);
             if (searchResponse.Status == Victoria.Responses.Search.SearchStatus.LoadFailed ||
                 searchResponse.Status == Victoria.Responses.Search.SearchStatus.NoMatches) {
-                await ReplyAsync($"I wasn't able to find anything for '{query}'.");
-                return;
+
+                searchResponse = await _lavaNode.SearchAsync(Victoria.Responses.Search.SearchType.YouTubeMusic, query);
+                if (searchResponse.Status == Victoria.Responses.Search.SearchStatus.LoadFailed ||
+                    searchResponse.Status == Victoria.Responses.Search.SearchStatus.NoMatches) {
+                    await ReplyAsync($"I wasn't able to find anything for '{query}'.");
+                    return;
+                }
             }
 
             var player = _lavaNode.GetPlayer(Context.Guild);
@@ -315,31 +321,41 @@ namespace DiscordMusicBot.Modules {
         [Command("lyrics")]
         [Summary("shows the lyrics for the playing track")]
         public async Task LyricsAsync() {
-            var track = _lavaNode.GetPlayer(Context.Guild).Track;
+            if (!await IsConnectedUser() || !await IsConnectedBot() || !await IsConnectedUserInTheSameVoiceChannel()) {
+                return;
+            }
 
-            string lyricsFromGenius = track.FetchLyricsFromGeniusAsync().GetAwaiter().GetResult();
-            if (lyricsFromGenius != null && lyricsFromGenius != "") {
-                await ReplyAsync(null, false, new EmbedBuilder()
-                .WithColor(Color.DarkBlue)
-                .WithTitle(track.Title)
-                .WithDescription(lyricsFromGenius)
-                .WithThumbnailUrl(await track.FetchArtworkAsync())
-                .WithFooter(footer => footer.Text = "Pinn is the Best!")
-                .Build());
-            } else {
-                string lyricsFromOvh = track.FetchLyricsFromOvhAsync().GetAwaiter().GetResult();
-                if (lyricsFromOvh != null && lyricsFromOvh != "") {
-                    await ReplyAsync(null, false, new EmbedBuilder()
-                .WithColor(Color.DarkBlue)
-                .WithTitle(track.Title)
-                .WithDescription(lyricsFromOvh)
-                .WithThumbnailUrl(await track.FetchArtworkAsync())
-                .WithFooter(footer => footer.Text = "Pinn is the Best!")
-                .Build());
+            var player = _lavaNode.GetPlayer(Context.Guild);
+            if (player.PlayerState != Victoria.Enums.PlayerState.Playing) {
+                await ReplyAsync("I'm not playing any tracks.");
+                return;
+            }
+
+            var track = player.Track;
+            var lyrics = await track.FetchLyricsFromOvhAsync();
+            if (string.IsNullOrWhiteSpace(lyrics)) {
+                await ReplyAsync($"No lyrics found for {track.Title}");
+                return;
+            }
+
+            var splitLyrics = lyrics.Split('\n');
+            var stringBuilder = new StringBuilder();
+            foreach (var line in splitLyrics) {
+                if (Enumerable.Range(1900, 2000).Contains(stringBuilder.Length)) {
+                    await ReplyAsync($"```{stringBuilder}```");
+                    stringBuilder.Clear();
                 } else {
-                    await ReplyAsync("No lyrics found for " + _lavaNode.GetPlayer(Context.Guild).Track.Title);
+                    stringBuilder.AppendLine(line);
                 }
             }
+
+            await ReplyAsync(null, false, new EmbedBuilder()
+                .WithColor(Color.DarkBlue)
+                .WithTitle(track.Title)
+                .WithDescription(stringBuilder.ToString())
+                .WithThumbnailUrl(await track.FetchArtworkAsync())
+                .WithFooter(footer => footer.Text = "Pinn is the Best!")
+                .Build());
         }
 
         [Command("queue"), Alias("q")]
@@ -455,4 +471,5 @@ namespace DiscordMusicBot.Modules {
             - when skip or play sometimes no track visualization appears to user
             - add delete/remove command (deletes/removes tracks from queue)
             - search for tracks in cloud too not just youtube
+            - leave when no music is playing or when no1 is in voice channel
  */
