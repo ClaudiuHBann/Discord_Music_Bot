@@ -47,8 +47,8 @@ namespace DiscordMusicBot {
             .AddSingleton<SStartup>()
             .AddSingleton<SLogging>()
             .AddLavaNode(lavaConfig => {
-                //lavaConfig.IsSsl = true;
-                lavaConfig.LogSeverity = LogSeverity.Verbose;
+                // lavaConfig.IsSsl = true;
+                // lavaConfig.LogSeverity = LogSeverity.Verbose;
             })
             .AddSingleton(IConfigurationRoot);
         }

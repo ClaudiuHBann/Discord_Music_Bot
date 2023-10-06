@@ -3,7 +3,7 @@ using Discord.Commands;
 
 using Microsoft.Extensions.Configuration;
 
-using Victoria;
+using Victoria.Node;
 
 namespace DiscordMusicBot.Services {
     public class CommandHandler {

@@ -1,11 +1,13 @@
 ﻿using Discord.Commands;
 using Discord;
 
-using Victoria.EventArgs;
 using Victoria;
+using Victoria.Node;
 
 using System.Text.RegularExpressions;
 using System.Text;
+using Victoria.Player;
+using Victoria.Node.EventArgs;
 
 namespace DiscordMusicBot.Modules {
     public class MMusic : ModuleBase<SocketCommandContext> {
@@ -14,15 +16,15 @@ namespace DiscordMusicBot.Modules {
 
         public MMusic(LavaNode lavaNode) {
             _lavaNode = lavaNode;
-            _lavaNode.OnTrackEnded += OnTrackEndedAsync;
+            _lavaNode.OnTrackEnd += OnTrackEndedAsync;
         }
 
-        private async Task OnTrackEndedAsync(TrackEndedEventArgs arg) {
-            if (arg.Player.PlayerState == Victoria.Enums.PlayerState.Stopped) {
+        private async Task OnTrackEndedAsync(TrackEndEventArg<LavaPlayer<LavaTrack>, LavaTrack> arg) {
+            if (arg.Player.PlayerState == PlayerState.Stopped) {
                 if (repeat) {
                     await arg.Player.PlayAsync(arg.Track);
                 } else {
-                    if (arg.Player.Queue != null && arg.Player.Queue.Count > 0) {
+                    if (arg.Player.Vueue != null && arg.Player.Vueue.Count > 0) {
                         await arg.Player.SkipAsync();
                         await arg.Player.TextChannel.SendMessageAsync("Now Playing...", false, await CreateEmbed(arg.Player.Track));
                     }
@@ -59,7 +61,7 @@ namespace DiscordMusicBot.Modules {
                 await JoinAsync();
             }
 
-            var searchResponse = await _lavaNode.SearchYouTubeAsync(query);
+            var searchResponse = await _lavaNode.SearchAsync(Victoria.Responses.Search.SearchType.YouTube, query);
             if (searchResponse.Status == Victoria.Responses.Search.SearchStatus.LoadFailed ||
                 searchResponse.Status == Victoria.Responses.Search.SearchStatus.NoMatches) {
 
@@ -71,11 +73,11 @@ namespace DiscordMusicBot.Modules {
                 }
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
             var track = searchResponse.Tracks.ToArray()[0];
-            if (player.PlayerState == Victoria.Enums.PlayerState.Playing ||
-                player.PlayerState == Victoria.Enums.PlayerState.Paused) {
-                player.Queue.Enqueue(track);
+            if (player.PlayerState == PlayerState.Playing ||
+                player.PlayerState == PlayerState.Paused) {
+                player.Vueue.Enqueue(track);
                 await ReplyAsync($"Enqueued: {track.Title}");
             } else {
                 await player.PlayAsync(track);
@@ -90,8 +92,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (player.Queue.Count == 0) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (player.Vueue.Count == 0) {
                 await player.StopAsync();
                 return;
             }
@@ -107,9 +109,9 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (player.PlayerState == Victoria.Enums.PlayerState.Paused ||
-                player.PlayerState == Victoria.Enums.PlayerState.Stopped) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (player.PlayerState == PlayerState.Paused ||
+                player.PlayerState == PlayerState.Stopped) {
                 await ReplyAsync("The music is already paused!");
                 return;
             }
@@ -125,8 +127,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (player.PlayerState == Victoria.Enums.PlayerState.Playing) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (player.PlayerState == PlayerState.Playing) {
                 await ReplyAsync("The music is already playing!");
                 return;
             }
@@ -142,8 +144,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (player.PlayerState != Victoria.Enums.PlayerState.Playing) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (player.PlayerState != PlayerState.Playing) {
                 await ReplyAsync("No music playing!");
                 return;
             }
@@ -170,7 +172,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            _lavaNode.GetPlayer(Context.Guild).Queue.Clear();
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            player.Vueue.Clear();
         }
 
         [Command("jump")]
@@ -180,11 +183,11 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (amount <= player.Queue.Count) {
-                player.Queue.RemoveRange(0, amount - 1);
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (amount <= player.Vueue.Count) {
+                player.Vueue.RemoveRange(0, amount - 1);
 
-                if (player.Queue.Count > 0) {
+                if (player.Vueue.Count > 0) {
                     await player.SkipAsync();
                 }
             } else {
@@ -207,10 +210,11 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
             if (repeat = !repeat) {
-                await ReplyAsync("I am going to repeat...", false, await CreateEmbed(_lavaNode.GetPlayer(Context.Guild).Track));
+                await ReplyAsync("I am going to repeat...", false, await CreateEmbed(player.Track));
             } else {
-                await ReplyAsync("I have stopped repeating...", false, await CreateEmbed(_lavaNode.GetPlayer(Context.Guild).Track));
+                await ReplyAsync("I have stopped repeating...", false, await CreateEmbed(player.Track));
             }
         }
 
@@ -221,7 +225,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            _lavaNode.GetPlayer(Context.Guild).Queue.Shuffle();
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            player.Vueue.Shuffle();
         }
 
         [Command("seek")]
@@ -231,7 +236,7 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
             if (!player.Track.CanSeek) {
                 await ReplyAsync("The track is unseekable!");
                 return;
@@ -266,7 +271,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var track = _lavaNode.GetPlayer(Context.Guild).Track;
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            var track = player.Track;
 
             TimeSpan position = track.Position, duration = track.Duration;
             int posInBar = (int)((double)position.Ticks / duration.Ticks * 10.0);
@@ -325,8 +331,8 @@ namespace DiscordMusicBot.Modules {
                 return;
             }
 
-            var player = _lavaNode.GetPlayer(Context.Guild);
-            if (player.PlayerState != Victoria.Enums.PlayerState.Playing) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (player.PlayerState != PlayerState.Playing) {
                 await ReplyAsync("I'm not playing any tracks.");
                 return;
             }
@@ -366,7 +372,8 @@ namespace DiscordMusicBot.Modules {
             }
 
             string q = "";
-            var queue = _lavaNode.GetPlayer(Context.Guild).Queue.ToArray();
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            var queue = player.Vueue.ToArray();
             for (int i = 1; i <= queue.Length; i++) {
                 q += i + ". " + queue[i - 1].Title + "\n";
             }
@@ -384,7 +391,9 @@ namespace DiscordMusicBot.Modules {
         [Summary("shows all the commands (aliases) - summaries")]
         public async Task AllAsync() {
             string all = "";
-            foreach (var command in Services.CommandHandler._commandService?.Commands.ToArray()) {
+            CommandInfo[]? array = Services.CommandHandler._commandService?.Commands.ToArray();
+            for (int i1 = 0; i1 < array?.Length; i1++) {
+                CommandInfo? command = array[i1];
                 string aliases = "";
                 for (int i = 1; i < command.Aliases.Count; i++) {
                     aliases += command.Aliases[i];
@@ -421,7 +430,8 @@ namespace DiscordMusicBot.Modules {
 
         public async Task<bool> IsConnectedUserInTheSameVoiceChannel() {
             var voiceState = Context.User as IVoiceState;
-            if (voiceState?.VoiceChannel != _lavaNode.GetPlayer(Context.Guild).VoiceChannel) {
+            _lavaNode.TryGetPlayer(Context.Guild, out LavaPlayer<LavaTrack> player);
+            if (voiceState?.VoiceChannel != player.VoiceChannel) {
                 await ReplyAsync("You need to be in the same voicechannel as me!");
                 return false;
             }
